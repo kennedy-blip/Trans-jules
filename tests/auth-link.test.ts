@@ -11,7 +11,7 @@ test('email link login enforces origin and allowlist and pins redirect',async()=
  globalThis.fetch=async(input,init)=>{
   calls++;
   const url=String(input);
-  assert.ok(url.startsWith('https://database.example/auth/v1/otp?redirect_to=https%3A%2F%2Fgateway.example'));
+  assert.equal(new URL(url).searchParams.get('redirect_to'),'https://gateway.example/auth/callback');
   const payload=JSON.parse(String(init?.body));
   assert.equal(payload.email,'owner@example.com');assert.equal(payload.create_user,true);
   return Response.json({});

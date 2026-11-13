@@ -18,7 +18,7 @@ export async function sendLoginLink(req: Request) {
  const redirect = new URL(appUrl);
  if (redirect.protocol !== 'https:' || redirect.username || redirect.password) throw new ApiError(503, 'Email sign-in is not configured');
  const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
- const { error } = await client.auth.signInWithOtp({ email, options: { emailRedirectTo: redirect.origin, shouldCreateUser: true } });
+ const { error } = await client.auth.signInWithOtp({ email, options: { emailRedirectTo: redirect.origin + '/auth/callback', shouldCreateUser: true } });
  if (error) throw new ApiError(error.status === 429 ? 429 : 503, error.status === 429 ? 'Email limit reached. Please wait before requesting another link.' : 'Unable to send sign-in email. Check Supabase email delivery settings.');
  return response();
 }
