@@ -4,6 +4,8 @@ begin;
 do $$
 declare node uuid; first_lease uuid; next_lease uuid; result jsonb; n integer;
 begin
+ if not has_table_privilege('service_role','public.api_keys','SELECT,INSERT,UPDATE,DELETE') then raise exception 'Server table grants missing'; end if;
+ if has_table_privilege('anon','public.api_keys','SELECT') or has_table_privilege('authenticated','public.api_keys','SELECT') then raise exception 'Private keys exposed'; end if;
  if (select count(*) from model_configs) <> 3 then raise exception 'Missing model seeds'; end if;
  if has_function_privilege('anon','public.acquire_node(uuid)','EXECUTE') then raise exception 'Anon can acquire admission'; end if;
  if has_function_privilege('authenticated','public.create_model_version(jsonb)','EXECUTE') then raise exception 'Non-admin can publish'; end if;

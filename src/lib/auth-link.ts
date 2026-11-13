@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { readJson } from './http';
-import { ApiError, allowedAdmin } from './security';
+import { ApiError } from './security';
 
 export async function sendLoginLink(req: Request) {
  const origin = req.headers.get('origin');
@@ -8,9 +8,8 @@ export async function sendLoginLink(req: Request) {
  const body = await readJson(req, 2048);
  const email = typeof body === 'object' && body !== null && 'email' in body && typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
  if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ApiError(400, 'Valid email required');
- // Do not reveal allowlist membership or contact the mail provider for unknown emails.
- const response = () => Response.json({ message: 'If this email is an approved administrator, a sign-in link has been requested. Check your inbox and spam folder.' }, { headers: { 'Cache-Control': 'no-store' } });
- if (!allowedAdmin(email)) return response();
+ // Responses never reveal whether an account already exists.
+ const response = () => Response.json({ message: 'A sign-in link has been requested. Check your inbox and spam folder. New accounts must verify email; administrator access is granted separately.' }, { headers: { 'Cache-Control': 'no-store' } });
  const url = process.env.SUPABASE_URL;
  const key = process.env.SUPABASE_ANON_KEY;
  const appUrl = process.env.APP_URL;

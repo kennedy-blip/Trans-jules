@@ -43,6 +43,6 @@ jobs:
       - name: Create Supabase-equivalent roles
         run: psql -v ON_ERROR_STOP=1 -c 'create role anon; create role authenticated; create role service_role bypassrls;'
       - name: Apply migration
-        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/202611130001_initial.sql
+        run: for migration in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 -f "$migration"; done
       - name: Check database invariants
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/invariants.sql

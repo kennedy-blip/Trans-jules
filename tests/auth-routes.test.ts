@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GET as session } from '../src/app/api/auth/session/route';
+import { admin } from '../src/lib/security';
 import { GET as providers } from '../src/app/api/auth/providers/route';
-test('session endpoint denies absent, unconfirmed, and non-admin identities',async()=>{
+test('session endpoint denies absent/unconfirmed identities; admits members without admin privileges',async()=>{
  process.env.SUPABASE_URL='https://database.example';process.env.SUPABASE_SERVICE_ROLE_KEY='service-test';process.env.ADMIN_EMAILS='admin@example.com';
  const original=globalThis.fetch;let email='admin@example.com';let confirmed=true;
  globalThis.fetch=async()=>Response.json({id:'user-1',email,email_confirmed_at:confirmed?'2026-11-13T00:00:00Z':null,identities:[{provider:'google'}]});
@@ -10,9 +11,9 @@ test('session endpoint denies absent, unconfirmed, and non-admin identities',asy
  try{
   assert.equal((await session(new Request('https://app.example/api/auth/session'))).status,401);
   confirmed=false;assert.equal((await session(req())).status,403);
-  confirmed=true;email='other@example.com';assert.equal((await session(req())).status,403);
+  confirmed=true;email='other@example.com';const member=await session(req());assert.equal(member.status,200);assert.equal((await member.json()).role,'member');await assert.rejects(()=>admin(req()),{status:401});
   email='admin@example.com';const r=await session(req());assert.equal(r.status,200);assert.equal(r.headers.get('Cache-Control'),'no-store');
-  const b=await r.json();assert.equal(b.email,email);assert.deepEqual(b.providers,['google']);assert.equal(b.access_token,undefined);
+  const b=await r.json();assert.equal(b.email,email);assert.equal(b.role,'admin');await admin(req());assert.deepEqual(b.providers,['google']);assert.equal(b.access_token,undefined);
  }finally{globalThis.fetch=original;}
 });
 test('provider endpoint exposes only readiness, fails closed, and never returns secrets',async()=>{
