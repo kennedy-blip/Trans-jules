@@ -195,3 +195,7 @@ On first access, enter the allowlisted owner email and choose **Email me a sign-
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Authentication troubleshooting and Google/GitHub login
+
+See [the auth setup guide](docs/AUTH_SETUP.md) before enabling new providers. Trans Jules now uses a dedicated `/auth/callback`, verifies server-side admin access before rendering the dashboard, and makes email-link login primary. “Continue with Google” and “Continue with GitHub” use Supabase OAuth with PKCE; the UI enables each only when its provider is configured. Vercel's Google login is a separate hosting gate, not a Trans Jules session. Google login does not automatically install the platform or grant GitHub/Vercel management permissions.

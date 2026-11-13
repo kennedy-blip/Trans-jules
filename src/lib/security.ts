@@ -15,7 +15,7 @@ export function allowedAdmin(email: string) {
 }
 export async function admin(req: Request) {
   const { data, error } = await db().auth.getUser(bearer(req));
-  if (error || !data.user?.email || !allowedAdmin(data.user.email)) throw new ApiError(401, 'Admin access required', 'authentication_error');
+  if (error || !data.user?.email || !data.user.email_confirmed_at || !allowedAdmin(data.user.email)) throw new ApiError(401, 'Admin access required', 'authentication_error');
   if (req.method !== 'GET' && req.headers.get('origin') && req.headers.get('origin') !== new URL(req.url).origin) throw new ApiError(403, 'Origin not allowed');
 }
 export function nodeAuth(req: Request) {
