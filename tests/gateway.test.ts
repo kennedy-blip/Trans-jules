@@ -11,7 +11,7 @@ test('gateway upstream fallback, JSON, SSE usage, and outage',async()=>{
  process.env.OPENROUTER_API_KEY='test-openrouter';
  delete process.env.HF_TOKEN;
  const original=globalThis.fetch;
- let stream=false; let outage=false; const logs:Record<string,any>[]=[];
+ let stream=false; let outage=false; let truncated=false; const logs:Record<string,any>[]=[];
  const model={name:'test-model',version:1,base_model:'local-model',system_prompt:'Be helpful',parameters:{temperature:0.2},priority:100};
  globalThis.fetch=async (input,init)=>{
   const url=typeof input==='string'?input:input instanceof URL?input.href:input.url;
@@ -33,6 +33,7 @@ test('gateway upstream fallback, JSON, SSE usage, and outage',async()=>{
    const payload=JSON.parse(String(init?.body));
    assert.equal(payload.messages[0].content,'Be helpful');
    assert.equal(payload.temperature,0.9);
+   if(stream && truncated) return new Response('data: {"choices":[{"delta":{"content":"partial"}}]}\n\n',{headers:{'Content-Type':'text/event-stream'}});
    if(stream) return new Response('data: {"id":"chatcmpl-test","choices":[{"delta":{"content":"Hello"}}]}\n\ndata: {"choices":[],"usage":{"total_tokens":12}}\n\ndata: [DONE]\n\n',{headers:{'Content-Type':'text/event-stream'}});
    return json({id:'chatcmpl-test',object:'chat.completion',model:'provider-model',choices:[{index:0,message:{role:'assistant',content:'Hello'},finish_reason:'stop'}],usage:{total_tokens:8}});
   }
@@ -44,6 +45,7 @@ test('gateway upstream fallback, JSON, SSE usage, and outage',async()=>{
   assert.equal(logs[0].tokens,8);assert.equal(logs[0].attempts.length,2);assert.equal(logs[0].attempts[0].status,429);
   stream=true;const sse=await completion(request());assert.match(sse.headers.get('content-type')! ,/text\/event-stream/);
   assert.match(await sse.text(),/data: \[DONE\]/);assert.equal(logs[1].tokens,12);
-  outage=true;await assert.rejects(()=>completion(request()),{status:503});assert.equal(logs[2].status,503);
+  truncated=true;const broken=await completion(request());assert.match(await broken.text(),/upstream_error/);assert.equal(logs[2].status,502);
+  outage=true;await assert.rejects(()=>completion(request()),{status:503});assert.equal(logs[3].status,503);
  } finally {globalThis.fetch=original;}
 });

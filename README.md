@@ -73,7 +73,7 @@ Without environment variables the dashboard renders an honest empty setup state.
 4. Deploy the feature branch for a preview; after reviewing the PR, merge for production.
 5. Sign in with the allowlisted admin. Create a key in **API keys**, and save it immediately.
 
-No GPU runs on Vercel. Vercel serves only the UI, gateway, and streaming proxy. The completion route requests a 300-second function duration; actual duration and streaming limits depend on the Vercel plan. Each upstream attempt is capped at 55 seconds; reduce retries/timeouts for stricter deployment limits. Build does not require a live database.
+No GPU runs on Vercel. Vercel serves only the UI, gateway, and streaming proxy. The completion route requests a 300-second function duration; actual duration and streaming limits depend on the Vercel plan. Each upstream attempt is capped at 55 seconds, with a 240-second overall retry/stream budget; reduce retries/timeouts for stricter deployment limits. Build does not require a live database.
 
 ### 4. Boot a local, Colab, or Kaggle worker
 
@@ -156,7 +156,7 @@ for chunk in client.chat.completions.create(
 4. Atomically acquire a concurrency lease; wait at most two seconds per busy worker. Release on completion/cancellation/failure; abandoned leases expire after 65 seconds. The worker proxy separately limits active inference calls.
 5. Try configured fallback providers in fixed order. Each fallback has an explicit environment-configured model ID, because provider model names differ from local weights. Unknown registry models return 404 instead of silently falling back.
 6. Return JSON or forward SSE bytes without buffering the whole completion. The first upstream body chunk is primed before response headers, allowing early transport failure to fail over. SSE usage frames are requested and counted when supplied by the provider. Streaming model IDs reflect the actual upstream model; nonstreaming responses expose the requested registry name.
-7. Once streaming starts, replay is unsafe: later failures emit an SSE error and `[DONE]`, and are logged, not retried. Cancellation aborts upstream fetch and releases admission. TTFT measures gateway-to-first-body-byte (nonstreaming uses completion latency), not an exact first generated token timestamp. Tokens are provider-reported; missing usage stays zero.
+7. Once streaming starts, replay is unsafe: later failures (including an EOF without the required `[DONE]` marker) emit an SSE error and `[DONE]`, and are logged, not retried. Cancellation aborts upstream fetch and releases admission. TTFT measures gateway-to-first-body-byte (nonstreaming uses completion latency), not an exact first generated token timestamp. Tokens are provider-reported; missing usage stays zero.
 
 Node protocol: `POST /api/nodes/register` with `{name,url,models,priority,max_concurrency}` returns `{node_id}`; `POST /api/nodes/heartbeat` with `{node_id,models,vram_free_mb,ram_free_mb,queue_load}` updates telemetry. Both require `Authorization: Bearer NODE_REGISTRATION_SECRET`. These are trusted-owner endpoints, not public worker enrollment.
 
@@ -172,7 +172,7 @@ trans-jules-node start --help
 python -m unittest discover -s worker-agent/tests
 ```
 
-CI repeats these checks. Tests cover model/version and alias selection, stale-node filtering, priority, hash generation, private-address rejection, tool/multimodal field preservation, Python discovery/telemetry, and proxy authorization. End-to-end database, GPU inference, upstream account permissions, and cloud deployment require your configured resources; a successful local build alone does not verify them.
+CI repeats these checks and applies the migration to an isolated PostgreSQL 17 service. SQL assertions verify RLS, RPC permissions, concurrency admission, lease expiry, stale-node rejection, and immutable version history. Tests cover model/version and alias selection, stale-node filtering, priority, hash generation, private-address rejection, tool/multimodal field preservation, bounded request bodies, malformed JSON, truncated/error SSE streams, Python discovery/telemetry, and proxy authorization. End-to-end database, GPU inference, upstream account permissions, and cloud deployment require your configured resources; a successful local build alone does not verify them.
 
 ## Operational scope and limitations
 

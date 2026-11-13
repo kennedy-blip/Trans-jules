@@ -1,3 +1,5 @@
+import { z } from 'zod';
+import { readJson } from '@/lib/http';
 import { randomBytes } from 'node:crypto';
 import { admin, hash, errorResponse, ApiError } from '@/lib/security';
 import { db, check } from '@/lib/db';
@@ -17,7 +19,10 @@ export async function GET(req: Request) {
 }
 export async function POST(req: Request) {
  try {
-  await admin(req); const b = await req.json(); const d = db();
+  await admin(req); const body = await readJson(req, 100_000);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ApiError(400,'JSON object required');
+  const b = body as Record<string, unknown>; const d = db();
+  if (['revoke-key','delete-rule','delete-node'].includes(String(b.action)) && !z.uuid().safeParse(b.id).success) throw new ApiError(400,'Valid resource ID required');
   if(b.action === 'create-key') {
    if(typeof b.name !== 'string' || !b.name.trim() || b.name.length > 100) throw new ApiError(400,'Key name required');
    const key = 'sk-tj-' + randomBytes(32).toString('hex');
@@ -30,6 +35,8 @@ export async function POST(req: Request) {
   }
   if(b.action === 'save-rule') {
    const p = ruleSchema.safeParse(b); if(!p.success) throw new ApiError(400,p.error.message);
+   const target=check(await d.from('model_configs').select('id').eq('name',p.data.model_name).limit(1));
+   if(!target?.length) throw new ApiError(400,'Target model is not registered');
    check(await d.from('routing_rules').upsert(p.data,{onConflict:'alias,model_name,task_pattern'})); return Response.json({ok:true});
   }
   if(b.action === 'delete-rule') { check(await d.from('routing_rules').delete().eq('id',b.id)); return Response.json({ok:true}); }
