@@ -22,7 +22,7 @@ test('implicit email callback accepts fragment tokens, not query-string tokens',
 });
 test('denied accounts are signed out locally, not shown the dashboard',async()=>{
  const original=globalThis.fetch;const {client,calls}=mockClient();globalThis.fetch=async()=>Response.json({},{status:403});
- try{await assert.rejects(()=>completeAuth(client,new URL('https://app.example/auth/callback?code=one-use')),/approved/);assert.deepEqual(calls,['exchange:one-use','signOut']);}finally{globalThis.fetch=original;}
+ try{await assert.rejects(()=>completeAuth(client,new URL('https://app.example/auth/callback?code=one-use')),/Confirm your email/);assert.deepEqual(calls,['exchange:one-use','signOut']);}finally{globalThis.fetch=original;}
 });
 test('provider cancellation and expired links never leak provider error details',async()=>{
  const {client,calls}=mockClient();const url=new URL('https://app.example/auth/callback#error=access_denied&error_description=sensitive');

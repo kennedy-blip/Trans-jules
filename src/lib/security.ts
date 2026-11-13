@@ -1,11 +1,16 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import { db, check } from './db';
+import { db, check, DatabaseError } from './db';
 export const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 export function bearer(req: Request) { return req.headers.get('authorization')?.match(/^Bearer (\S+)$/i)?.[1] ?? ''; }
 export class ApiError extends Error { constructor(public status: number, message: string, public code = 'invalid_request_error') { super(message); } }
 export function errorResponse(e: unknown) {
+  if(e instanceof DatabaseError) {
+    console.error('Database failure',e.code);
+    const message=e.code==='42501'?'Database permissions are missing. Apply the service-role grants migration.':(e.code==='42P01'||e.code==='PGRST202'||e.code==='PGRST205')?'Database setup is incomplete. Apply the application migrations.':'Database is temporarily unavailable. Please retry or contact the administrator.';
+    return Response.json({error:{message,type:'server_error',param:null,code:'database_unavailable'}},{status:503,headers:{'Cache-Control':'no-store'}});
+  }
   const known = e instanceof ApiError;
   if (!known) console.error(e);
   return Response.json({ error: { message: known ? e.message : 'Internal service error', type: known ? e.code : 'server_error', param: null, code: known ? e.code : 'internal_error' } }, { status: known ? e.status : 500 });
@@ -13,9 +18,16 @@ export function errorResponse(e: unknown) {
 export function allowedAdmin(email: string) {
   return (process.env.ADMIN_EMAILS ?? '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean).includes(email.trim().toLowerCase());
 }
+export async function signedInUser(req: Request) {
+  const token=bearer(req);if(!token)throw new ApiError(401,'Sign-in required','authentication_error');
+  const {data,error}=await db().auth.getUser(token);
+  if(error||!data.user)throw new ApiError(401,'Session expired. Please sign in again.','authentication_error');
+  if(!data.user.email||!data.user.email_confirmed_at)throw new ApiError(403,'Confirm your email before continuing.','permission_error');
+  return data.user;
+}
 export async function admin(req: Request) {
-  const { data, error } = await db().auth.getUser(bearer(req));
-  if (error || !data.user?.email || !data.user.email_confirmed_at || !allowedAdmin(data.user.email)) throw new ApiError(401, 'Admin access required', 'authentication_error');
+  const user=await signedInUser(req);
+  if (!allowedAdmin(user.email!)) throw new ApiError(401, 'Admin access required', 'authentication_error');
   if (req.method !== 'GET' && req.headers.get('origin') && req.headers.get('origin') !== new URL(req.url).origin) throw new ApiError(403, 'Origin not allowed');
 }
 export function nodeAuth(req: Request) {

@@ -17,7 +17,7 @@ export async function completeAuth(client: SupabaseClient, url: URL) {
  const fragment = new URLSearchParams(url.hash.slice(1));
  if (code) {
   const result = await client.auth.exchangeCodeForSession(code);
-  if (result.error) throw new Error('Unable to finish sign-in. Use the same browser and request a fresh sign-in.');
+  if (result.error) throw new Error('Unable to finish OAuth sign-in. Start again in this same browser. Email links can be opened directly on your phone.');
  } else if (fragment.get('access_token') && fragment.get('refresh_token')) {
   const result = await client.auth.setSession({ access_token: fragment.get('access_token')!, refresh_token: fragment.get('refresh_token')! });
   if (result.error) throw new Error('Your sign-in link is no longer valid. Request a new link.');
@@ -28,7 +28,7 @@ export async function completeAuth(client: SupabaseClient, url: URL) {
  if (sessionError || !data.session) throw new Error('No active session. Please sign in again.');
  const response = await fetch('/api/auth/session', { headers: { Authorization: `Bearer ${data.session.access_token}` }, cache: 'no-store' });
  if (!response.ok) {
-  await client.auth.signOut({ scope: 'local' });
-  throw new Error(response.status === 403 ? 'This account is not an approved Trans Jules administrator. Use your allowlisted email.' : 'The platform could not verify your session. Please try again.');
+  if(response.status===401||response.status===403)await client.auth.signOut({ scope: 'local' });
+  throw new Error(response.status === 403 ? 'Confirm your email before continuing. Request a fresh link if needed.' : 'Your login succeeded, but platform verification is unavailable. Please retry or contact the administrator.');
  }
 }

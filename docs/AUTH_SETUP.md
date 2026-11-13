@@ -72,3 +72,36 @@ Future “install this platform” onboarding requires registering a dedicated G
 - Deployment Protection no longer intercepts SDK requests where production is intentionally public.
 
 Unit tests cover PKCE and implicit callback handling, allowlist checks, cancellation, untrusted query tokens, session verification, and provider availability. Real provider consent and mail delivery require the owner's browser/account and are not proved by a passing build.
+
+## Public accounts and troubleshooting
+
+Anyone can create a Trans Jules account (email/password, email link, or a configured
+OAuth provider). Supabase Auth stores accounts in `auth.users` and identities in
+`auth.identities`; no duplicate password database is maintained. Email confirmation
+is required. Members get an account screen, not the shared control plane. Only
+confirmed emails in server-side `ADMIN_EMAILS` can call `/api/admin`; user metadata
+cannot grant this role.
+
+Apply **all** tracked migrations in order. `202611130002_service_role_grants.sql`
+fixes missing SQL table grants that caused dashboard internal errors. RLS remains
+on and anonymous/authenticated roles retain no table access. This grant fix has
+also been applied to the connected Supabase project.
+
+Provider credentials must come from the provider, not from your Supabase project
+name. A GitHub OAuth App Client ID is not an app display name or personal token.
+Google requires a **Web application** OAuth client with a Client ID ending in
+`.apps.googleusercontent.com` and its matching client secret. Configure the consent
+screen/audience; if in testing, add intended users as test users. Register this exact
+redirect URI in both provider apps:
+`https://suaukmetnxjciwmejofj.supabase.co/auth/v1/callback`.
+Set Google authorized JavaScript origin to your canonical application origin.
+Paste credentials directly into Supabase Authentication → Sign In / Providers,
+enable the provider, and save. Never send secrets in chat. The connected management
+tool cannot set provider OAuth credentials. Provider-enabled flags alone do not
+prove credentials are valid or consent works.
+
+Configure custom SMTP before public launch: Supabase's built-in sender has low
+limits and recipient restrictions. A new account request is not proof that email
+was delivered. Email callbacks support opening on a phone; OAuth must finish in
+the browser where it started. Test email confirmation, both OAuth consent flows,
+and a non-admin member account before launch.
