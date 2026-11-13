@@ -6,7 +6,7 @@ A self-hosted AI gateway and versioned model registry: Next.js App Router, TypeS
 
 ## Included
 
-- Admin-only Supabase email/password authentication with a server-enforced email allowlist.
+- Admin-only Supabase email/password or email-link authentication with a server-enforced email allowlist.
 - Unified `sk-tj-…` keys, generated from 256 bits of randomness. Only SHA-256 hashes are stored; secrets appear once and can be copied or revoked.
 - Immutable model configuration versions, system prompts, generation defaults, priorities, and explicit `model-name@v2` addressing.
 - Virtual aliases with priority-ordered, case-insensitive literal task matching (`auto-fast`, `auto-code`, `auto-reasoning`).
@@ -33,7 +33,7 @@ worker-agent/                  Installable trans_jules_node Python CLI
 
 1. Create or choose a Supabase project dedicated to this gateway.
 2. Run **the complete file** `supabase/migrations/202611130001_initial.sql` in the SQL Editor, or apply it with the Supabase CLI (`supabase link --project-ref YOUR_REF`, then `supabase db push`). Apply once to a fresh schema.
-3. Under Authentication → Users, create your admin email/password account. Disable public signups for a private deployment. There is deliberately no signup UI.
+3. Under Authentication → Users, create your admin email/password account, or set `APP_URL` and use **Email me a sign-in link** to bootstrap an allowlisted admin by verifying email ownership. Disable public signups after the admin exists; existing users can still request email sign-in links. The application never gives non-allowlisted users dashboard access.
 4. Copy the project URL, anon key, and **service-role** key from project settings. Never expose the service-role key in browser code or use a `NEXT_PUBLIC_` name for it.
 5. Set `ADMIN_EMAILS` to the exact email(s) allowed to manage the gateway. A valid Supabase login alone does not grant admin access. Use strong passwords and keep the allowlist narrow.
 
@@ -49,6 +49,7 @@ Copy `.env.example` to `.env.local` for local development. In Vercel, add the sa
 | `SUPABASE_ANON_KEY` | Yes | Browser Supabase Auth client; safe public credential |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only database access |
 | `ADMIN_EMAILS` | Yes | Comma-separated exact admin emails |
+| `APP_URL` | For email-link sign-in | Canonical HTTPS origin, also allowlisted in Supabase Auth redirects |
 | `NODE_REGISTRATION_SECRET` | Yes for workers | Shared registration/heartbeat secret |
 | `WORKER_INFERENCE_KEY` | Yes for workers | Separate secret protecting worker proxy inference |
 | `GROQ_API_KEY`, `GROQ_MODEL` | Optional | First upstream fallback |
@@ -71,7 +72,7 @@ Without environment variables the dashboard renders an honest empty setup state.
 2. Use Node.js 22+, install command `npm ci`, build command `npm run build`; leave output-directory defaults unchanged.
 3. Add the environment variables above. Set the Supabase Auth Site URL to your deployed HTTPS origin.
 4. Deploy the feature branch for a preview; after reviewing the PR, merge for production.
-5. Sign in with the allowlisted admin. Create a key in **API keys**, and save it immediately.
+5. Sign in with the allowlisted admin (password or email link). Email links always return to `APP_URL`; use the same browser to open them. Create a key in **API keys**, and save it immediately. Supabase's default mail service may restrict recipients to the project owner and has low rate limits; configure custom SMTP if delivery is blocked.
 
 No GPU runs on Vercel. Vercel serves only the UI, gateway, and streaming proxy. The completion route requests a 300-second function duration; actual duration and streaming limits depend on the Vercel plan. Each upstream attempt is capped at 55 seconds, with a 240-second overall retry/stream budget; reduce retries/timeouts for stricter deployment limits. Build does not require a live database.
 
@@ -182,6 +183,14 @@ CI repeats these checks and applies the migration to an isolated PostgreSQL 17 s
 - Dashboard uses live polling, not Supabase Realtime subscriptions. Request bodies, prompts, generated text, and raw secrets are not logged; metadata retention is your responsibility. Periodically delete old request logs and expired leases if needed.
 - Supabase service-role availability is required for both authentication and routing. There is no insecure database-free production mode.
 - OpenAI compatibility covers the chat completions/models surface, not Responses, embeddings, files, audio, fine-tuning, or every provider's model capabilities. Tool/vision/structured-output support depends on the selected inference backend. Failover may use a different model/provider; review privacy requirements before configuring cloud fallbacks.
+
+## Connected deployment
+
+The approved Supabase project is `suaukmetnxjciwmejofj` in eu-west-2. Its initial schema and seeded registry have been applied; **do not rerun the initial migration manually** against this project. Vercel project `trans-jules` is linked to this GitHub repository. Connection credentials and worker secrets are stored in Vercel environment variables, not in this repository.
+
+Canonical dashboard: https://trans-jules-kmokaya864-5310.vercel.app
+
+On first access, enter the allowlisted owner email and choose **Email me a sign-in link**. Vercel may first require signing into the owning Vercel account because the team applies Deployment Protection; to use the API from external SDKs, review and disable Vercel Authentication for the production deployment in Project Settings → Deployment Protection (the app still enforces its own admin/key authentication). Worker secrets are sensitive Vercel variables: if you need new values for your local agent, generate replacements and update Vercel plus the agent together, then redeploy. No inference worker or cloud-provider fallback credentials are configured automatically.
 
 ## License
 

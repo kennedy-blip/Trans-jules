@@ -10,10 +10,12 @@ export function errorResponse(e: unknown) {
   if (!known) console.error(e);
   return Response.json({ error: { message: known ? e.message : 'Internal service error', type: known ? e.code : 'server_error', param: null, code: known ? e.code : 'internal_error' } }, { status: known ? e.status : 500 });
 }
+export function allowedAdmin(email: string) {
+  return (process.env.ADMIN_EMAILS ?? '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean).includes(email.trim().toLowerCase());
+}
 export async function admin(req: Request) {
   const { data, error } = await db().auth.getUser(bearer(req));
-  const allowed = (process.env.ADMIN_EMAILS ?? '').toLowerCase().split(',').map(s => s.trim());
-  if (error || !data.user?.email || !allowed.includes(data.user.email.toLowerCase())) throw new ApiError(401, 'Admin access required', 'authentication_error');
+  if (error || !data.user?.email || !allowedAdmin(data.user.email)) throw new ApiError(401, 'Admin access required', 'authentication_error');
   if (req.method !== 'GET' && req.headers.get('origin') && req.headers.get('origin') !== new URL(req.url).origin) throw new ApiError(403, 'Origin not allowed');
 }
 export function nodeAuth(req: Request) {
